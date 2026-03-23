@@ -1,0 +1,1134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LabPrint — Smart Photo to PDF</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --surface2: #1a1a26;
+    --border: #2a2a3e;
+    --accent: #00ff88;
+    --accent2: #7c3aed;
+    --accent3: #f59e0b;
+    --text: #e8e8f0;
+    --muted: #6b6b80;
+    --danger: #ef4444;
+    --a4-w: 210;
+    --a4-h: 297;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Syne', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grid BG */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,255,136,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,255,136,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app {
+    position: relative;
+    z-index: 1;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+
+  /* Header */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 48px;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .logo-icon {
+    width: 40px; height: 40px;
+    background: var(--accent);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+  }
+
+  .logo h1 {
+    font-size: 24px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+  }
+
+  .logo h1 span { color: var(--accent); }
+
+  .badge {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 1px;
+  }
+
+  /* Step indicator */
+  .steps {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin-bottom: 40px;
+  }
+
+  .step {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    transition: all 0.3s;
+  }
+
+  .step.active { color: var(--accent); }
+  .step.done { color: var(--accent2); }
+
+  .step-num {
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    border: 1.5px solid currentColor;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+  }
+
+  .step.active .step-num {
+    background: var(--accent);
+    color: var(--bg);
+    border-color: var(--accent);
+  }
+
+  .step-line {
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+    max-width: 60px;
+  }
+
+  /* Upload zone */
+  #uploadZone {
+    border: 2px dashed var(--border);
+    border-radius: 16px;
+    padding: 60px 40px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s;
+    background: var(--surface);
+    position: relative;
+    overflow: hidden;
+  }
+
+  #uploadZone::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at 50% 0%, rgba(0,255,136,0.08), transparent 60%);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  #uploadZone:hover, #uploadZone.dragover {
+    border-color: var(--accent);
+  }
+
+  #uploadZone:hover::before, #uploadZone.dragover::before { opacity: 1; }
+
+  .upload-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+    display: block;
+  }
+
+  .upload-title {
+    font-size: 22px;
+    font-weight: 800;
+    margin-bottom: 8px;
+  }
+
+  .upload-sub {
+    color: var(--muted);
+    font-size: 14px;
+    margin-bottom: 24px;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-family: 'Syne', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none;
+    text-decoration: none;
+  }
+
+  .btn-accent {
+    background: var(--accent);
+    color: var(--bg);
+  }
+
+  .btn-accent:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,255,136,0.3);
+  }
+
+  .btn-outline {
+    background: transparent;
+    color: var(--text);
+    border: 1.5px solid var(--border);
+  }
+
+  .btn-outline:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .btn-purple {
+    background: var(--accent2);
+    color: #fff;
+  }
+
+  .btn-purple:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(124,58,237,0.4);
+  }
+
+  .btn-amber {
+    background: var(--accent3);
+    color: var(--bg);
+  }
+
+  .btn-amber:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(245,158,11,0.3);
+  }
+
+  #fileInput { display: none; }
+
+  /* Image grid */
+  #imageGrid {
+    display: none;
+  }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+
+  .section-title {
+    font-size: 18px;
+    font-weight: 800;
+  }
+
+  .count-badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 4px 12px;
+    color: var(--accent);
+  }
+
+  .thumb-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 12px;
+    margin-bottom: 32px;
+  }
+
+  .thumb-card {
+    position: relative;
+    aspect-ratio: 4/3;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1.5px solid var(--border);
+    background: var(--surface);
+    cursor: grab;
+    transition: all 0.2s;
+  }
+
+  .thumb-card:hover { border-color: var(--accent); transform: scale(1.02); }
+  .thumb-card.dragging { opacity: 0.4; transform: scale(0.95); }
+  .thumb-card.drag-over { border-color: var(--accent); border-style: dashed; }
+
+  .thumb-card img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .thumb-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+
+  .thumb-card:hover .thumb-overlay { opacity: 1; }
+
+  .thumb-remove {
+    background: var(--danger);
+    color: #fff;
+    border: none;
+    border-radius: 50%;
+    width: 32px; height: 32px;
+    cursor: pointer;
+    font-size: 16px;
+    display: flex; align-items: center; justify-content: center;
+    transition: transform 0.2s;
+  }
+
+  .thumb-remove:hover { transform: scale(1.1); }
+
+  .thumb-index {
+    position: absolute;
+    top: 6px; left: 6px;
+    background: rgba(0,0,0,0.7);
+    color: var(--accent);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+
+  /* Settings */
+  .settings-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 28px;
+  }
+
+  .setting-card {
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+  }
+
+  .setting-label {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+
+  .setting-card select, .setting-card input[type="range"] {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    cursor: pointer;
+    outline: none;
+  }
+
+  .setting-card select:focus {
+    border-color: var(--accent);
+  }
+
+  input[type="range"] {
+    -webkit-appearance: none;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+    padding: 0 !important;
+  }
+
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+  }
+
+  .range-val {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--accent);
+    margin-top: 6px;
+  }
+
+  /* Actions */
+  .action-bar {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: center;
+    padding: 20px;
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 12px;
+    margin-bottom: 32px;
+  }
+
+  .action-bar .spacer { flex: 1; }
+
+  /* Preview */
+  #previewSection { display: none; }
+
+  .preview-container {
+    background: #555;
+    border-radius: 12px;
+    padding: 20px;
+    overflow-x: auto;
+  }
+
+  .pages-scroll {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+  }
+
+  .page-wrapper {
+    flex-shrink: 0;
+    text-align: center;
+  }
+
+  .page-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 8px;
+    letter-spacing: 1px;
+  }
+
+  .a4-page {
+    background: white;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+    position: relative;
+    /* A4 at 96dpi: 794 x 1123px roughly, we scale down */
+  }
+
+  /* Stats bar */
+  .stats-bar {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+    margin-bottom: 24px;
+    padding: 16px 20px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+
+  .stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .stat-val {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--accent);
+  }
+
+  .stat-key {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  /* Progress */
+  #progressBar {
+    display: none;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-bottom: 20px;
+    text-align: center;
+  }
+
+  .progress-track {
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    margin-top: 10px;
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 2px;
+    transition: width 0.3s;
+  }
+
+  .toast {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    background: var(--surface2);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    padding: 12px 20px;
+    border-radius: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    z-index: 1000;
+    transform: translateY(100px);
+    opacity: 0;
+    transition: all 0.3s;
+  }
+
+  .toast.show { transform: translateY(0); opacity: 1; }
+
+  /* Efficiency indicator */
+  .efficiency-ring {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(0,255,136,0.1);
+    border: 1px solid rgba(0,255,136,0.3);
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--accent);
+  }
+
+  @media (max-width: 600px) {
+    .steps { display: none; }
+    header { flex-direction: column; gap: 12px; align-items: flex-start; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="logo">
+      <div class="logo-icon">🖨</div>
+      <h1>Lab<span>Print</span></h1>
+    </div>
+    <div class="badge">BTECH CSE TOOL</div>
+  </header>
+
+  <div class="steps">
+    <div class="step active" id="step1"><div class="step-num">1</div> Upload Photos</div>
+    <div class="step-line"></div>
+    <div class="step" id="step2"><div class="step-num">2</div> Configure</div>
+    <div class="step-line"></div>
+    <div class="step" id="step3"><div class="step-num">3</div> Preview & Export</div>
+  </div>
+
+  <!-- Upload Zone -->
+  <div id="uploadZone">
+    <span class="upload-icon">📸</span>
+    <div class="upload-title">Drop your lab screenshots here</div>
+    <div class="upload-sub">Code + output screenshots, diagrams, anything for your lab record</div>
+    <button class="btn btn-accent" onclick="document.getElementById('fileInput').click()">
+      Choose Photos
+    </button>
+    <input type="file" id="fileInput" multiple accept="image/*">
+    <p style="margin-top:16px; font-size:12px; color:var(--muted); font-family:'JetBrains Mono',monospace;">PNG · JPG · WEBP · BMP — multiple files OK</p>
+  </div>
+
+  <!-- Image Grid Section -->
+  <div id="imageGrid">
+    <div class="section-header">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <span class="section-title">Uploaded Images</span>
+        <span class="count-badge" id="imgCount">0 images</span>
+      </div>
+      <button class="btn btn-outline" onclick="document.getElementById('fileInput').click()" style="font-size:13px;padding:8px 16px;">+ Add More</button>
+    </div>
+
+    <div class="thumb-grid" id="thumbGrid"></div>
+
+    <div class="settings-row">
+      <div class="setting-card">
+        <div class="setting-label">Layout Mode</div>
+        <select id="layoutMode">
+          <option value="auto">Auto (Max Efficiency)</option>
+          <option value="1col">1 Column</option>
+          <option value="2col">2 Columns</option>
+          <option value="3col">3 Columns</option>
+          <option value="2x2">2×2 Grid</option>
+        </select>
+      </div>
+      <div class="setting-card">
+        <div class="setting-label">Page Margin (mm)</div>
+        <input type="range" id="marginSlider" min="5" max="25" value="10" step="1">
+        <div class="range-val" id="marginVal">10 mm</div>
+      </div>
+      <div class="setting-card">
+        <div class="setting-label">Gap Between Images (mm)</div>
+        <input type="range" id="gapSlider" min="2" max="15" value="5" step="1">
+        <div class="range-val" id="gapVal">5 mm</div>
+      </div>
+      <div class="setting-card">
+        <div class="setting-label">Export Quality</div>
+        <select id="qualitySelect">
+          <option value="1" selected>300 DPI — Lossless PNG (Best)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="action-bar">
+      <button class="btn btn-purple" onclick="generatePreview()">👁 Preview Layout</button>
+      <div class="spacer"></div>
+      <span id="efficiencyBadge" class="efficiency-ring" style="display:none;">⚡ 0% space used</span>
+      <button class="btn btn-amber" onclick="exportPDF()" id="exportBtn" style="display:none;">⬇ Export PDF</button>
+    </div>
+
+    <div id="progressBar">
+      <div id="progressText" style="font-family:'JetBrains Mono',monospace;font-size:13px;">Generating PDF...</div>
+      <div class="progress-track"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+    </div>
+  </div>
+
+  <!-- Preview Section -->
+  <div id="previewSection">
+    <div class="section-header" style="margin-top:32px;">
+      <span class="section-title">Layout Preview</span>
+      <div style="display:flex;gap:10px;align-items:center;">
+        <span class="efficiency-ring" id="efficiencyMain">⚡ Loading...</span>
+        <button class="btn btn-accent" onclick="exportPDF()">⬇ Export PDF</button>
+      </div>
+    </div>
+
+    <div class="stats-bar" id="statsBar"></div>
+    <div class="preview-container">
+      <div class="pages-scroll" id="pagesContainer"></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<footer style="text-align:center; padding: 20px 0 40px; font-size: 13px; color: var(--muted); font-family: 'JetBrains Mono', monospace; position: relative; z-index:1;">
+  made with <span style="color:#ef4444;">♥</span> by <span style="color:var(--accent);">Hanbro</span> & <span style="color:var(--accent);">AP</span>
+</footer>
+
+<script>
+// ===================== STATE =====================
+let images = []; // {id, name, img (HTMLImageElement), w, h}
+let layoutPages = []; // computed layout
+let dragSrcIdx = null;
+
+// ===================== UPLOAD =====================
+const fileInput = document.getElementById('fileInput');
+const uploadZone = document.getElementById('uploadZone');
+
+fileInput.addEventListener('change', e => handleFiles(e.target.files));
+
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('dragover'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadZone.classList.remove('dragover');
+  handleFiles(e.dataTransfer.files);
+});
+uploadZone.addEventListener('click', e => {
+  if (e.target.tagName !== 'BUTTON') document.getElementById('fileInput').click();
+});
+
+async function handleFiles(files) {
+  const arr = Array.from(files).filter(f => f.type.startsWith('image/'));
+  if (!arr.length) return;
+
+  for (const file of arr) {
+    const img = await loadImage(file);
+    images.push({ id: Date.now() + Math.random(), name: file.name, img });
+  }
+
+  renderThumbs();
+  document.getElementById('uploadZone').style.display = 'none';
+  document.getElementById('imageGrid').style.display = 'block';
+  setStep(2);
+}
+
+function loadImage(file) {
+  return new Promise(res => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => res(img);
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+// ===================== THUMBNAILS =====================
+function renderThumbs() {
+  const grid = document.getElementById('thumbGrid');
+  document.getElementById('imgCount').textContent = `${images.length} image${images.length !== 1 ? 's' : ''}`;
+  grid.innerHTML = '';
+
+  images.forEach((img, i) => {
+    const card = document.createElement('div');
+    card.className = 'thumb-card';
+    card.draggable = true;
+    card.dataset.idx = i;
+    card.innerHTML = `
+      <img src="${img.img.src}" alt="${img.name}">
+      <div class="thumb-index">#${i + 1}</div>
+      <div class="thumb-overlay">
+        <button class="thumb-remove" onclick="removeImage(${i})">✕</button>
+      </div>
+    `;
+    card.addEventListener('dragstart', () => { dragSrcIdx = i; card.classList.add('dragging'); });
+    card.addEventListener('dragend', () => card.classList.remove('dragging'));
+    card.addEventListener('dragover', e => { e.preventDefault(); card.classList.add('drag-over'); });
+    card.addEventListener('dragleave', () => card.classList.remove('drag-over'));
+    card.addEventListener('drop', e => {
+      e.preventDefault();
+      card.classList.remove('drag-over');
+      if (dragSrcIdx !== null && dragSrcIdx !== i) {
+        const moved = images.splice(dragSrcIdx, 1)[0];
+        images.splice(i, 0, moved);
+        renderThumbs();
+        document.getElementById('previewSection').style.display = 'none';
+      }
+    });
+    grid.appendChild(card);
+  });
+}
+
+function removeImage(idx) {
+  images.splice(idx, 1);
+  if (images.length === 0) {
+    document.getElementById('imageGrid').style.display = 'none';
+    document.getElementById('uploadZone').style.display = 'block';
+    document.getElementById('previewSection').style.display = 'none';
+    setStep(1);
+    return;
+  }
+  renderThumbs();
+}
+
+// ===================== SLIDERS =====================
+document.getElementById('marginSlider').addEventListener('input', function() {
+  document.getElementById('marginVal').textContent = this.value + ' mm';
+});
+document.getElementById('gapSlider').addEventListener('input', function() {
+  document.getElementById('gapVal').textContent = this.value + ' mm';
+});
+
+// ===================== LAYOUT ENGINE =====================
+// A4 dimensions in mm: 210 x 297
+// We work in mm internally, render at a scale factor for canvas/preview
+
+const A4_W = 210; // mm
+const A4_H = 297; // mm
+
+function getSettings() {
+  return {
+    margin: parseInt(document.getElementById('marginSlider').value),
+    gap: parseInt(document.getElementById('gapSlider').value),
+    mode: document.getElementById('layoutMode').value,
+    quality: parseFloat(document.getElementById('qualitySelect').value),
+  };
+}
+
+function computeLayout() {
+  const { margin, gap, mode } = getSettings();
+  const availW = A4_W - 2 * margin;
+  const availH = A4_H - 2 * margin;
+
+  if (mode === 'auto') {
+    return computeAutoLayout(availW, availH, margin, gap);
+  } else if (mode === '1col') {
+    return computeColumnLayout(1, availW, availH, margin, gap);
+  } else if (mode === '2col') {
+    return computeColumnLayout(2, availW, availH, margin, gap);
+  } else if (mode === '3col') {
+    return computeColumnLayout(3, availW, availH, margin, gap);
+  } else if (mode === '2x2') {
+    return computeGridLayout(2, 2, availW, availH, margin, gap);
+  }
+}
+
+// Auto layout: strip-based packing for maximum space efficiency
+function computeAutoLayout(availW, availH, margin, gap) {
+  const pages = [];
+  let remaining = [...images];
+
+  while (remaining.length > 0) {
+    const { placements, used } = packPage(remaining, availW, availH, margin, gap);
+    if (!used.length) break; // safety
+    pages.push(placements);
+    remaining = remaining.filter((_, i) => !used.includes(i));
+  }
+
+  return pages;
+}
+
+// Strip-based packing: fill rows greedily top-to-bottom
+function packPage(imgs, availW, availH, margin, gap) {
+  const placements = [];
+  const used = new Set();
+  let curY = margin;
+
+  while (used.size < imgs.length) {
+    // Build list of not-yet-placed items: expose .img as the HTMLImageElement
+    const remaining = imgs
+      .map((wrapper, i) => ({ img: wrapper.img, origIdx: i }))
+      .filter(({ origIdx }) => !used.has(origIdx));
+
+    if (!remaining.length) break;
+
+    const spaceLeft = (A4_H - margin) - curY;
+    if (spaceLeft < 15) break;
+
+    const { rowPlacements, rowHeight, rowUsed } = bestRow(remaining, availW, spaceLeft, margin, gap);
+    if (!rowUsed.length) break;
+
+    rowPlacements.forEach(p => {
+      placements.push({ img: p.img, x: p.x, y: curY + p.y, w: p.w, h: p.h });
+    });
+    rowUsed.forEach(i => used.add(remaining[i].origIdx));
+    curY += rowHeight + gap;
+  }
+
+  return { placements, used: [...used] };
+}
+
+function bestRow(imgItems, availW, availH, margin, gap) {
+  let bestScore = -1;
+  let bestResult = null;
+
+  const maxTry = Math.min(imgItems.length, 5);
+
+  for (let count = 1; count <= maxTry; count++) {
+    const subset = imgItems.slice(0, count);
+    const result = fitImagesInRow(subset, availW, availH, gap, margin);
+    if (!result) continue;
+
+    const score = result.rowHeight / availH;
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestResult = { ...result, rowUsed: subset.map((_, i) => i) };
+    }
+  }
+
+  if (!bestResult) {
+    const item = imgItems[0];
+    const ar = item.img.naturalWidth / item.img.naturalHeight;
+    let w = availW;
+    let h = w / ar;
+    if (h > availH) { h = availH; w = h * ar; }
+    w = Math.min(w, availW);
+    bestResult = {
+      rowPlacements: [{ img: item.img, x: margin, y: 0, w, h }],
+      rowHeight: h,
+      rowUsed: [0]
+    };
+  }
+
+  return bestResult;
+}
+
+// Fit N images side-by-side in one row at equal height, proportional widths
+function fitImagesInRow(imgItems, availW, availH, gap, margin) {
+  const n = imgItems.length;
+  const totalGap = (n - 1) * gap;
+  const usableW = availW - totalGap;
+
+  const aspectRatios = imgItems.map(item => item.img.naturalWidth / item.img.naturalHeight);
+  const sumAR = aspectRatios.reduce((s, ar) => s + ar, 0);
+  if (sumAR <= 0) return null;
+
+  const rowH = usableW / sumAR;
+  if (rowH > availH || rowH < 8) return null;
+
+  let x = margin;
+  const placements = imgItems.map((item, i) => {
+    const w = rowH * aspectRatios[i];
+    const p = { img: item.img, x, y: 0, w, h: rowH };
+    x += w + gap;
+    return p;
+  });
+
+  return { rowPlacements: placements, rowHeight: rowH };
+}
+
+// Column layout
+function computeColumnLayout(cols, availW, availH, margin, gap) {
+  const pages = [];
+  const colW = (availW - (cols - 1) * gap) / cols;
+  let remaining = [...images];
+
+  while (remaining.length > 0) {
+    const placements = [];
+    const colYs = new Array(cols).fill(margin);
+    const used = [];
+
+    for (let imgIdx = 0; imgIdx < remaining.length; imgIdx++) {
+      const colIdx = colYs.indexOf(Math.min(...colYs));
+      const imgObj = remaining[imgIdx];
+      const imgEl = imgObj.img;
+      const ar = imgEl.naturalWidth / imgEl.naturalHeight;
+      const w = colW;
+      const h = w / ar;
+      const y = colYs[colIdx];
+      const xPos = margin + colIdx * (colW + gap);
+
+      if (y + h > A4_H - margin + 1) {
+        if (colYs[colIdx] === margin) {
+          const clampH = A4_H - 2 * margin;
+          const clampW = clampH * ar;
+          placements.push({ img: imgEl, x: xPos, y, w: Math.min(clampW, colW), h: clampH });
+          colYs[colIdx] = A4_H;
+          used.push(imgIdx);
+        }
+        continue;
+      }
+
+      placements.push({ img: imgEl, x: xPos, y, w, h });
+      colYs[colIdx] += h + gap;
+      used.push(imgIdx);
+    }
+
+    if (!used.length) break;
+    pages.push(placements);
+    remaining = remaining.filter((_, i) => !used.includes(i));
+  }
+
+  return pages;
+}
+
+// Grid layout
+function computeGridLayout(cols, rows, availW, availH, margin, gap) {
+  const pages = [];
+  const cellW = (availW - (cols - 1) * gap) / cols;
+  const cellH = (availH - (rows - 1) * gap) / rows;
+  const perPage = cols * rows;
+
+  for (let p = 0; p < images.length; p += perPage) {
+    const placements = [];
+    for (let i = 0; i < perPage && p + i < images.length; i++) {
+      const row = Math.floor(i / cols);
+      const col = i % cols;
+      const imgObj = images[p + i];
+      const imgEl = imgObj.img;
+      const ar = imgEl.naturalWidth / imgEl.naturalHeight;
+      let w = cellW, h = cellW / ar;
+      if (h > cellH) { h = cellH; w = h * ar; }
+      const x = margin + col * (cellW + gap) + (cellW - w) / 2;
+      const y = margin + row * (cellH + gap) + (cellH - h) / 2;
+      placements.push({ img: imgEl, x, y, w, h });
+    }
+    pages.push(placements);
+  }
+
+  return pages;
+}
+
+// ===================== PREVIEW =====================
+const PREVIEW_SCALE = 2.5; // mm to px for preview
+
+function generatePreview() {
+  if (!images.length) return;
+  layoutPages = computeLayout();
+  renderPreview();
+  setStep(3);
+  document.getElementById('previewSection').style.display = 'block';
+  document.getElementById('exportBtn').style.display = 'flex';
+
+  // Compute efficiency
+  const efficiency = computeEfficiency();
+  document.getElementById('efficiencyBadge').style.display = 'flex';
+  document.getElementById('efficiencyBadge').textContent = `⚡ ${efficiency}% efficient`;
+  document.getElementById('efficiencyMain').textContent = `⚡ ${efficiency}% space used`;
+
+  // Stats
+  document.getElementById('statsBar').innerHTML = `
+    <div class="stat"><div class="stat-val">${images.length}</div><div class="stat-key">Images</div></div>
+    <div class="stat"><div class="stat-val">${layoutPages.length}</div><div class="stat-key">Pages</div></div>
+    <div class="stat"><div class="stat-val">${efficiency}%</div><div class="stat-key">Space Used</div></div>
+    <div class="stat"><div class="stat-val">A4</div><div class="stat-key">Page Size</div></div>
+    <div class="stat"><div class="stat-val">${document.getElementById('marginSlider').value}mm</div><div class="stat-key">Margin</div></div>
+  `;
+
+  document.getElementById('previewSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  showToast(`✓ Layout ready — ${layoutPages.length} page(s), ${efficiency}% efficient`);
+}
+
+function renderPreview() {
+  const container = document.getElementById('pagesContainer');
+  container.innerHTML = '';
+
+  layoutPages.forEach((placements, pi) => {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'page-wrapper';
+
+    const label = document.createElement('div');
+    label.className = 'page-label';
+    label.textContent = `PAGE ${pi + 1} / ${layoutPages.length}`;
+    wrapper.appendChild(label);
+
+    const canvas = document.createElement('canvas');
+    const s = PREVIEW_SCALE;
+    canvas.width = A4_W * s;
+    canvas.height = A4_H * s;
+    canvas.style.width = (A4_W * s) + 'px';
+    canvas.style.height = (A4_H * s) + 'px';
+    canvas.className = 'a4-page';
+
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    placements.forEach(p => {
+      ctx.drawImage(p.img, p.x * s, p.y * s, p.w * s, p.h * s);
+    });
+
+    wrapper.appendChild(canvas);
+    container.appendChild(wrapper);
+  });
+}
+
+function computeEfficiency() {
+  let totalImageArea = 0;
+  let totalPageArea = layoutPages.length * A4_W * A4_H;
+
+  layoutPages.forEach(page => {
+    page.forEach(p => { totalImageArea += p.w * p.h; });
+  });
+
+  return Math.round((totalImageArea / totalPageArea) * 100);
+}
+
+// ===================== EXPORT PDF =====================
+async function exportPDF() {
+  if (!layoutPages.length) { generatePreview(); return; }
+
+  const progressBar = document.getElementById('progressBar');
+  const progressFill = document.getElementById('progressFill');
+  const progressText = document.getElementById('progressText');
+  progressBar.style.display = 'block';
+  progressText.textContent = 'Initializing PDF...';
+  progressFill.style.width = '10%';
+
+  await new Promise(r => setTimeout(r, 50));
+
+  const { jsPDF } = window.jspdf;
+  const quality = parseFloat(document.getElementById('qualitySelect').value);
+
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+  const total = layoutPages.length;
+
+  for (let pi = 0; pi < total; pi++) {
+    if (pi > 0) pdf.addPage();
+
+    const placements = layoutPages[pi];
+    progressText.textContent = `Rendering page ${pi + 1} of ${total} at 300 DPI...`;
+    progressFill.style.width = `${10 + (pi / total) * 70}%`;
+    await new Promise(r => setTimeout(r, 30));
+
+    // Render at true 300 DPI: A4=210x297mm, 1inch=25.4mm → 300/25.4≈11.81px per mm
+    const DPI_SCALE = 300 / 25.4;
+    const canvas = document.createElement('canvas');
+    canvas.width  = Math.round(A4_W * DPI_SCALE); // 2480px
+    canvas.height = Math.round(A4_H * DPI_SCALE); // 3508px
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    for (const p of placements) {
+      ctx.drawImage(p.img,
+        p.x * DPI_SCALE, p.y * DPI_SCALE,
+        p.w * DPI_SCALE, p.h * DPI_SCALE
+      );
+    }
+
+    // PNG = lossless, essential for code text sharpness
+    const imgData = canvas.toDataURL('image/png');
+    pdf.addImage(imgData, 'PNG', 0, 0, A4_W, A4_H, undefined, 'NONE');
+  }
+
+  progressText.textContent = 'Saving PDF...';
+  progressFill.style.width = '95%';
+  await new Promise(r => setTimeout(r, 50));
+
+  pdf.save('lab-record.pdf');
+
+  progressFill.style.width = '100%';
+  progressText.textContent = '✓ PDF exported!';
+  showToast('✓ PDF saved as lab-record.pdf');
+
+  setTimeout(() => { progressBar.style.display = 'none'; }, 2000);
+}
+
+// ===================== UI HELPERS =====================
+function setStep(n) {
+  ['step1','step2','step3'].forEach((id, i) => {
+    const el = document.getElementById(id);
+    el.className = 'step';
+    if (i + 1 < n) el.classList.add('done');
+    else if (i + 1 === n) el.classList.add('active');
+  });
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+</script>
+</body>
+</html>
